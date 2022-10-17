@@ -12,55 +12,82 @@ namespace Practive_vs_1.Repository;
 public class ProductRepository
 {
 
-    public static string connectionString = "server=localhost;port=3306;Database=products;uid=root;pwd=Mana@123";
-
-
+    public static string connectionString = "server=localhost;port=3306;Database=products;uid=root;pwd=ChoosePassword";
     static MySqlConnection connection = new MySqlConnection(connectionString);
 
-    public List<dynamic> GetAllProducts()
+    public string CreateJointString(string filter)
     {
-        var users = connection.Query<dynamic>("SELECT * FROM products join images on products.id=images.id;").ToList();
-        return users.ToList();
+        String[] arr = filter.Split(",");
+        for (int i = 0; i < arr.Count(); i++)
+        {
+            arr[i] = "\"" + arr[i] + "\"";
+        }
+
+        string filters = string.Join(", ", arr);
+        return filters;
     }
 
-    public List<dynamic> GetAllProducts(int? priceFrom, int? priceTo, string? brand, string? category)
+    public string CreateQuery(int? priceFrom, int? priceTo, string? brand, string? category)
     {
-        string query = "select * from ProductDB";
+        string query = "SELECT *, (SELECT GROUP_CONCAT(images.image_link SEPARATOR ', ') FROM images WHERE producttable.id = images.image_id) as imageList from producttable";
+        Console.WriteLine(query);
+
+        if (brand == null && category == null && priceFrom == null && priceTo == null)
+        {
+            return query;
+        }
+    
+        else
+        {
+            query += " WHERE";
+        }
+
+        if (category != null)
+        {
+            query = query + $" category IN ({category})";
+            
+        }
 
         if (brand != null)
         {
-            query = query + $" WHERE brand IN (\'{brand}\')";
-
-            if (category != null)
-            {
-                query = query + $" AND category IN (\'{category}\')";
-            }
-
-            if (priceFrom != null && priceTo != null)
-            {
-                query = query + $" AND price BETWEEN {priceFrom} AND {priceTo}";
-            }
+            if (category != null) query += " AND";
+            query = query + $" brand IN ({brand})";
         }
-        else if (category != null)
+
+        if (priceFrom != null && priceTo != null)
         {
-            query = query + $" WHERE category IN (\'{category}\')";
-            if (priceFrom != null && priceTo != null)
-            {
-                query = query + $" AND price BETWEEN {priceFrom} AND {priceTo}";
-            }
-        }
-        else if (priceFrom != null && priceTo != null)
-        {
-            query = query + $" AND price BETWEEN {priceFrom} AND {priceTo}";
-        }
-        else 
-        {
-            query = "SELECT * from products join images on products.id = images.id";
+            if (brand != null || category != null) query += " AND";
+            query = query + $" WHERE price BETWEEN {priceFrom} AND {priceTo}";
         }
 
+        return query;
+    }
 
-        var final_products =  connection.Query<dynamic>(query);
-        return final_products.ToList();
+
+    public List<ProductModel> GetAllProducts(int? priceFrom, int? priceTo, string? brand, string? category)
+    {
+        if (brand != null) brand = CreateJointString(brand);
+        if (category != null) category = CreateJointString(category);
+
+        string query = CreateQuery(priceFrom, priceTo, brand, category);
+
+        var final_product_data = connection.Query<ProductModel>(query);
+        var final_products = final_product_data.Select((obj, i) => new ProductModel
+        {
+            id = obj.id,
+            title = obj.title,
+            description = obj.description,
+            price = obj.price,
+            discountPercentage = obj.discountPercentage,
+            rating = obj.rating,
+            stock = obj.stock,
+            brand = obj.brand,
+            category = obj.category,
+            thumbnail = obj.thumbnail,
+            imageList = obj.imageList.Contains(",") ? obj.imageList.Split(", ") : obj.imageList
+        }).ToList<ProductModel>();
+
+        return final_products;
     }
 
 }

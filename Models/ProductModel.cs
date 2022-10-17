@@ -15,4 +15,5 @@ public class ProductModel
     public string brand { get; set;}
     public string category { get; set;}
     public string thumbnail { get; set;}
+    public dynamic imageList {get;set;}
 }
